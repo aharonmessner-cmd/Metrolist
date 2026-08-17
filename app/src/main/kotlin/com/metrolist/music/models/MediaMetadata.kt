@@ -34,7 +34,22 @@ data class MediaMetadata(
     val suggestedBy: String? = null,
     val isEpisode: Boolean = false,
     val uploadEntityId: String? = null,
+    // Queue Groups: when non-null, this song was added to the queue as part of a logical
+    // group (e.g. an album or playlist queued in one action). Consecutive queue items sharing
+    // the same queueGroupId form one group for shuffle/reorder purposes; see
+    // com.metrolist.music.queue.QueueEntry. A null value (the default) means an ordinary,
+    // ungrouped queue item, matching all pre-Queue-Groups behavior.
+    val queueGroupId: String? = null,
+    val queueGroupTitle: String? = null,
 ) : Serializable {
+    companion object {
+        // Explicit so persisted queues (java.io.Serializable via ObjectOutputStream in
+        // PersistQueue) don't fail deserialization with an implicit-UID mismatch every time
+        // a field is added to this class. Bump this only for changes that should intentionally
+        // invalidate previously persisted queues.
+        private const val serialVersionUID: Long = 1L
+    }
+
     val isVideoSong: Boolean
         get() = musicVideoType != null && musicVideoType != MUSIC_VIDEO_TYPE_ATV
 
