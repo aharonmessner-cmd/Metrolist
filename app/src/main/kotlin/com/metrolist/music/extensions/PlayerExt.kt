@@ -69,6 +69,49 @@ fun Player.getQueueWindows(): List<Timeline.Window> {
     return queue.toList()
 }
 
+/**
+ * The queueGroupId of every item in the queue, in raw window-index order - i.e. exactly the
+ * shape com.metrolist.music.queue.buildGroupAwareShuffleOrder()/buildGroupAwarePooledShuffleOrder()
+ * expect for their `groupIds` parameter.
+ */
+fun Player.queueGroupIds(): List<String?> = List(mediaItemCount) { getMediaItemAt(it).metadata?.queueGroupId }
+
+/** The queueGroupTitle of every item in the queue, in raw window-index order. See [queueGroupIds]. */
+fun Player.queueGroupTitles(): List<String?> = List(mediaItemCount) { getMediaItemAt(it).metadata?.queueGroupTitle }
+
+/**
+ * The full current shuffle traversal order as raw window indices - the same sequence
+ * [getQueueWindows] returns, but as plain Ints instead of [Timeline.Window] objects. Meaningful
+ * only while shuffleModeEnabled. Used to snapshot "the current shuffle order" before mutating the
+ * timeline (e.g. before MusicService.playNext() inserts new items), so a pure function
+ * (com.metrolist.music.queue.buildShuffleOrderForPlayNext) can compute the post-mutation order
+ * without touching ExoPlayer itself.
+ */
+fun Player.shuffleOrderIndices(): List<Int> {
+    val timeline = currentTimeline
+    if (timeline.isEmpty) return emptyList()
+    val currentMediaItemIndex: Int = currentMediaItemIndex
+
+    val before = mutableListOf<Int>()
+    var idx = currentMediaItemIndex
+    while (true) {
+        idx = timeline.getPreviousWindowIndex(idx, REPEAT_MODE_OFF, shuffleModeEnabled)
+        if (idx == C.INDEX_UNSET) break
+        before.add(idx)
+    }
+    before.reverse()
+
+    val after = mutableListOf<Int>()
+    idx = currentMediaItemIndex
+    while (true) {
+        idx = timeline.getNextWindowIndex(idx, REPEAT_MODE_OFF, shuffleModeEnabled)
+        if (idx == C.INDEX_UNSET) break
+        after.add(idx)
+    }
+
+    return before + currentMediaItemIndex + after
+}
+
 fun Player.getCurrentQueueIndex(): Int {
     if (currentTimeline.isEmpty) {
         return -1

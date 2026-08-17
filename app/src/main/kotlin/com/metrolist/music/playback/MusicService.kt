@@ -186,7 +186,10 @@ import com.metrolist.music.extensions.currentMetadata
 import com.metrolist.music.extensions.findNextMediaItemById
 import com.metrolist.music.extensions.mediaItems
 import com.metrolist.music.extensions.metadata
+import com.metrolist.music.extensions.queueGroupIds
+import com.metrolist.music.extensions.queueGroupTitles
 import com.metrolist.music.extensions.setOffloadEnabled
+import com.metrolist.music.extensions.shuffleOrderIndices
 import com.metrolist.music.extensions.toEnum
 import com.metrolist.music.extensions.toMediaItem
 import com.metrolist.music.extensions.toPersistQueue
@@ -205,6 +208,9 @@ import com.metrolist.music.playback.queues.YouTubeQueue
 import com.metrolist.music.playback.queues.YouTubePlaylistQueue
 import com.metrolist.music.playback.queues.filterExplicit
 import com.metrolist.music.playback.queues.filterVideoSongs
+import com.metrolist.music.queue.buildGroupAwarePooledShuffleOrder
+import com.metrolist.music.queue.buildGroupAwareShuffleOrder
+import com.metrolist.music.queue.buildShuffleOrderForPlayNext
 import com.metrolist.music.constants.LoudnessLevel
 import com.metrolist.music.constants.LoudnessLevelKey
 import com.metrolist.music.utils.CoilBitmapLoader
@@ -2062,68 +2068,31 @@ class MusicService :
             }
         }
 
-        val insertIndex = player.currentMediaItemIndex + 1
+        val currentIndex = player.currentMediaItemIndex
+        val insertIndex = currentIndex + 1
         val shuffleEnabled = player.shuffleModeEnabled
+        // Snapshot the current shuffle traversal order before mutating the timeline, so the
+        // post-insertion order can be computed as pure index arithmetic
+        // (com.metrolist.music.queue.buildShuffleOrderForPlayNext) instead of reverse-engineering
+        // it from ExoPlayer's own default post-insert shuffle order.
+        val oldShuffleOrder = if (shuffleEnabled) player.shuffleOrderIndices() else null
 
         // Insert items immediately after the current item in the window/index space
         player.addMediaItems(insertIndex, items)
         player.prepare()
 
-        if (shuffleEnabled) {
-            // Rebuild shuffle order so that newly inserted items are played next
-            val timeline = player.currentTimeline
-            if (!timeline.isEmpty) {
-                val size = timeline.windowCount
-                val currentIndex = player.currentMediaItemIndex
-
-                // Newly inserted indices are a contiguous range [insertIndex, insertIndex + items.size)
-                val newIndices = (insertIndex until (insertIndex + items.size)).toSet()
-
-                // Collect existing shuffle traversal order excluding current index
-                val orderAfter = mutableListOf<Int>()
-                var idx = currentIndex
-                while (true) {
-                    idx = timeline.getNextWindowIndex(idx, Player.REPEAT_MODE_OFF, /*shuffleModeEnabled=*/true)
-                    if (idx == C.INDEX_UNSET) break
-                    if (idx != currentIndex) orderAfter.add(idx)
-                }
-
-                val prevList = mutableListOf<Int>()
-                var pIdx = currentIndex
-                while (true) {
-                    pIdx = timeline.getPreviousWindowIndex(pIdx, Player.REPEAT_MODE_OFF, /*shuffleModeEnabled=*/true)
-                    if (pIdx == C.INDEX_UNSET) break
-                    if (pIdx != currentIndex) prevList.add(pIdx)
-                }
-                prevList.reverse() // preserve original forward order
-
-                val existingOrder = (prevList + orderAfter).filter { it != currentIndex && it !in newIndices }
-
-                // Build new shuffle order: current -> newly inserted (in insertion order) -> rest
-                val nextBlock = (insertIndex until (insertIndex + items.size)).toList()
-                val finalOrder = IntArray(size)
-                var pos = 0
-                prevList
-                    .filter { it !in newIndices }
-                    .forEach { if (it in 0 until size) finalOrder[pos++] = it }
-                finalOrder[pos++] = currentIndex
-                nextBlock.forEach { if (it in 0 until size) finalOrder[pos++] = it }
-                orderAfter
-                    .filter { it !in newIndices }
-                    .forEach { if (pos < size) finalOrder[pos++] = it }
-
-                // Fill any missing indices (safety) to ensure a full permutation
-                if (pos < size) {
-                    for (i in 0 until size) {
-                        if (!finalOrder.contains(i)) {
-                            finalOrder[pos++] = i
-                            if (pos == size) break
-                        }
-                    }
-                }
-
-                player.setShuffleOrder(DefaultShuffleOrder(finalOrder, System.currentTimeMillis()))
-            }
+        if (shuffleEnabled && !oldShuffleOrder.isNullOrEmpty()) {
+            // New items are always placed as one contiguous, internally-ordered block right
+            // after current; everything else keeps its existing relative order, so any Queue
+            // Group (see com.metrolist.music.queue.QueueEntry) that was already contiguous stays
+            // contiguous, and the newly inserted batch is itself one contiguous unit too.
+            val finalOrder = buildShuffleOrderForPlayNext(
+                oldOrder = oldShuffleOrder,
+                currentIndex = currentIndex,
+                insertIndex = insertIndex,
+                newItemsCount = items.size,
+            )
+            player.setShuffleOrder(DefaultShuffleOrder(finalOrder, System.currentTimeMillis()))
         }
     }
 
@@ -2818,38 +2787,29 @@ class MusicService :
     ) {
         if (totalCount == 0) return
 
-        if (shufflePlaylistFirst && originalQueueSize > 0 && originalQueueSize < totalCount) {
-            // Shuffle original items and added items separately
-            val originalIndices = (0 until originalQueueSize).filter { it != currentIndex }.toMutableList()
-            val addedIndices = (originalQueueSize until totalCount).filter { it != currentIndex }.toMutableList()
+        val groupIds = player.queueGroupIds()
+        val groupTitles = player.queueGroupTitles()
 
-            originalIndices.shuffle()
-            addedIndices.shuffle()
-
-            val shuffledIndices = IntArray(totalCount)
-            var pos = 0
-            shuffledIndices[pos++] = currentIndex
-
-            if (currentIndex < originalQueueSize) {
-                originalIndices.forEach { shuffledIndices[pos++] = it }
-                addedIndices.forEach { shuffledIndices[pos++] = it }
+        val shuffledIndices =
+            if (shufflePlaylistFirst && originalQueueSize > 0 && originalQueueSize < totalCount) {
+                // Shuffle original items and added items separately, keeping any Queue Group
+                // (see com.metrolist.music.queue.QueueEntry) contiguous within its own pool.
+                buildGroupAwarePooledShuffleOrder(
+                    totalCount = totalCount,
+                    currentIndex = currentIndex,
+                    groupIds = groupIds,
+                    poolBoundary = originalQueueSize,
+                    groupTitles = groupTitles,
+                )
             } else {
-                (0 until originalQueueSize).shuffled().forEach { shuffledIndices[pos++] = it }
-                addedIndices.forEach { shuffledIndices[pos++] = it }
+                buildGroupAwareShuffleOrder(
+                    totalCount = totalCount,
+                    currentIndex = currentIndex,
+                    groupIds = groupIds,
+                    groupTitles = groupTitles,
+                )
             }
-            player.setShuffleOrder(DefaultShuffleOrder(shuffledIndices, System.currentTimeMillis()))
-        } else {
-            val shuffledIndices = IntArray(totalCount) { it }
-            shuffledIndices.shuffle()
-            // Ensure current item is first in the shuffle order
-            val currentItemIndexInShuffled = shuffledIndices.indexOf(currentIndex)
-            if (currentItemIndexInShuffled != -1) { // Should always be true if totalCount > 0
-                val temp = shuffledIndices[0]
-                shuffledIndices[0] = shuffledIndices[currentItemIndexInShuffled]
-                shuffledIndices[currentItemIndexInShuffled] = temp
-            }
-            player.setShuffleOrder(DefaultShuffleOrder(shuffledIndices, System.currentTimeMillis()))
-        }
+        player.setShuffleOrder(DefaultShuffleOrder(shuffledIndices, System.currentTimeMillis()))
     }
 
     override fun onPlaybackParametersChanged(playbackParameters: PlaybackParameters) {
