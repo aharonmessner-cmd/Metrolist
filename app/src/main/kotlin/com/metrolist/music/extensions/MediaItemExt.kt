@@ -13,23 +13,17 @@ import com.metrolist.innertube.models.SongItem
 import com.metrolist.music.db.entities.Song
 import com.metrolist.music.models.MediaMetadata
 import com.metrolist.music.models.toMediaMetadata
+import com.metrolist.music.queue.newQueueGroupId
 import com.metrolist.music.ui.utils.resize
 
 val MediaItem.metadata: MediaMetadata?
     get() = localConfiguration?.tag as? MediaMetadata
 
-/**
- * [queueGroupId]/[queueGroupTitle] stamp this item as part of a Queue Group (see
- * com.metrolist.music.queue.QueueEntry): callers that queue a whole album/playlist as one
- * batch pass the same freshly-generated id (see com.metrolist.music.queue.newQueueGroupId) and
- * title for every item in that batch. Left null (the default) for an ordinary, ungrouped item -
- * this is what every pre-existing single-song call site still gets unchanged.
- */
-fun Song.toMediaItem(queueGroupId: String? = null, queueGroupTitle: String? = null) = MediaItem.Builder()
+fun Song.toMediaItem() = MediaItem.Builder()
     .setMediaId(song.id)
     .setUri(song.id)
     .setCustomCacheKey(song.id)
-    .setTag(toMediaMetadata().copy(queueGroupId = queueGroupId, queueGroupTitle = queueGroupTitle))
+    .setTag(toMediaMetadata())
     .setMediaMetadata(
         androidx.media3.common.MediaMetadata.Builder()
             .setTitle(song.title)
@@ -49,11 +43,11 @@ fun Song.toMediaItem(queueGroupId: String? = null, queueGroupTitle: String? = nu
     )
     .build()
 
-fun SongItem.toMediaItem(queueGroupId: String? = null, queueGroupTitle: String? = null) = MediaItem.Builder()
+fun SongItem.toMediaItem() = MediaItem.Builder()
     .setMediaId(id)
     .setUri(id)
     .setCustomCacheKey(id)
-    .setTag(toMediaMetadata().copy(queueGroupId = queueGroupId, queueGroupTitle = queueGroupTitle))
+    .setTag(toMediaMetadata())
     .setMediaMetadata(
         androidx.media3.common.MediaMetadata.Builder()
             .setTitle(title)
@@ -72,6 +66,32 @@ fun SongItem.toMediaItem(queueGroupId: String? = null, queueGroupTitle: String? 
             .build()
     )
     .build()
+
+/**
+ * Stamps a fresh, shared Queue Group (see com.metrolist.music.queue.QueueEntry) onto every item
+ * in this list: one new id (com.metrolist.music.queue.newQueueGroupId - never any permanent
+ * album/playlist id) and [groupTitle], applied to a copy of each item's existing tag via
+ * [MediaItem.buildUpon]. Everything else about each item (media id, URI, media3 metadata,
+ * artwork, ...) is left untouched.
+ *
+ * This is the "as Group" counterpart to building a normal, flat item list: build the exact same
+ * MediaItems you would for a normal Play/Play Next/Add to Queue (`songs.map { it.toMediaItem() }`
+ * etc.), then call `.asQueueGroup(title)` on the result only when the caller explicitly chose a
+ * grouped action. An empty list is returned unchanged (no group id is wasted on nothing).
+ * A single-item list is still stamped - see com.metrolist.music.queue.queueGroupEntries, which
+ * treats a run of exactly one grouped item as an ordinary ungrouped [QueueEntry.Single] anyway,
+ * so this is harmless and keeps the batch/id-generation logic in exactly one place here.
+ */
+fun List<MediaItem>.asQueueGroup(groupTitle: String): List<MediaItem> {
+    if (isEmpty()) return this
+    val groupId = newQueueGroupId()
+    return map { item ->
+        val tag = item.metadata ?: return@map item
+        item.buildUpon()
+            .setTag(tag.copy(queueGroupId = groupId, queueGroupTitle = groupTitle))
+            .build()
+    }
+}
 
 // Defaults preserve whatever this MediaMetadata already carries (e.g. a queue restored from
 // PersistQueue may already have queueGroupId/queueGroupTitle set) instead of stamping every

@@ -41,6 +41,7 @@ import com.metrolist.music.db.entities.Playlist
 import com.metrolist.music.db.entities.PlaylistEntity
 import com.metrolist.music.db.entities.PlaylistSong
 import com.metrolist.music.db.entities.PlaylistSongMap
+import com.metrolist.music.queue.newQueueGroupId
 import com.metrolist.music.db.entities.PodcastEntity
 import com.metrolist.music.db.entities.RecognitionHistory
 import com.metrolist.music.db.entities.RelatedSongMap
@@ -1204,6 +1205,52 @@ interface DatabaseDao {
                     ),
                 )
             }
+        }
+        updatePlaylistLastUpdated(playlist.id)
+    }
+
+    /**
+     * "Add to Playlist as Group" - like [addSongsToPlaylist], but stores [songs] as one
+     * persistent playlist group (see [PlaylistSongMap.playlistGroupId]) titled [groupTitle]
+     * instead of as ordinary ungrouped entries. One fresh group id is generated for this call -
+     * never the source album/playlist's own permanent id - so adding the same collection as a
+     * group again later creates an independent group. Existing playlist entries (grouped or
+     * not) are left untouched.
+     */
+    @Transaction
+    fun addSongsToPlaylistAsGroup(
+        playlist: Playlist,
+        songs: List<Pair<String, String?>>, // Pair of (songId, setVideoId)
+        groupTitle: String,
+        prepend: Boolean = false,
+    ) {
+        val now = LocalDateTime.now()
+        val songsToInsert =
+            songs.mapNotNull { (id, setVideoId) ->
+                getSongByIdBlocking(id)?.let { id to setVideoId }
+            }
+        if (songsToInsert.isEmpty()) return
+        val groupId = newQueueGroupId()
+
+        if (prepend) {
+            shiftPlaylistSongPositions(playlist.id, songsToInsert.size)
+        }
+        var position = if (prepend) 0 else playlist.songCount
+        songsToInsert.forEach { (id, setVideoId) ->
+            val existingSong = getSongByIdBlocking(id)!!
+            if (existingSong.song.inLibrary == null) {
+                inLibrary(id, now)
+            }
+            insert(
+                PlaylistSongMap(
+                    songId = id,
+                    playlistId = playlist.id,
+                    position = position++,
+                    setVideoId = setVideoId,
+                    playlistGroupId = groupId,
+                    playlistGroupTitle = groupTitle,
+                ),
+            )
         }
         updatePlaylistLastUpdated(playlist.id)
     }

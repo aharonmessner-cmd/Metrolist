@@ -24,12 +24,14 @@ import com.metrolist.music.constants.SleepTimerEndTimeKey
 import com.metrolist.music.constants.SleepTimerRepeatKey
 import com.metrolist.music.constants.SleepTimerStartTimeKey
 import com.metrolist.music.db.MusicDatabase
+import com.metrolist.music.extensions.asQueueGroup
 import com.metrolist.music.extensions.currentMetadata
 import com.metrolist.music.extensions.getCurrentQueueIndex
 import com.metrolist.music.extensions.getQueueWindows
 import com.metrolist.music.extensions.metadata
 import com.metrolist.music.extensions.togglePlayPause
 import com.metrolist.music.playback.MusicService.MusicBinder
+import com.metrolist.music.playback.queues.ListQueue
 import com.metrolist.music.playback.queues.Queue
 import com.metrolist.music.utils.dataStore
 import com.metrolist.music.utils.get
@@ -301,6 +303,31 @@ class PlayerConnection(
             throw e
         }
     }
+
+    /**
+     * "As Group" counterparts of [playQueue]/[playNext]/[addToQueue]: the caller explicitly
+     * opts into treating [items] as one Queue Group (see com.metrolist.music.queue.QueueEntry)
+     * titled [groupTitle], instead of the normal flat insertion the plain functions above
+     * perform. Both paths build the exact same MediaItems (e.g. via
+     * Song.toMediaItem()/SongItem.toMediaItem()) - grouping is applied afterward via
+     * List<MediaItem>.asQueueGroup(), which mints one fresh group id per call (never the
+     * album/playlist's own permanent id), so queuing the same collection as a group twice
+     * produces two independent groups. These simply delegate to the plain functions above once
+     * the items are stamped, so Listen-Together guest blocking and all other existing behavior
+     * stays in exactly one place.
+     *
+     * Only meaningful for a caller that already has the full item list up front (e.g. a local
+     * album/playlist's songs) - queue sources that load items lazily during playback (YouTube
+     * radio/continuation queues) are not wrapped here.
+     */
+    fun playQueueAsGroup(title: String?, items: List<MediaItem>, groupTitle: String) =
+        playQueue(ListQueue(title = title, items = items.asQueueGroup(groupTitle)))
+
+    fun playNextAsGroup(items: List<MediaItem>, groupTitle: String) =
+        playNext(items.asQueueGroup(groupTitle))
+
+    fun addToQueueAsGroup(items: List<MediaItem>, groupTitle: String) =
+        addToQueue(items.asQueueGroup(groupTitle))
 
     fun toggleLike() {
         try {

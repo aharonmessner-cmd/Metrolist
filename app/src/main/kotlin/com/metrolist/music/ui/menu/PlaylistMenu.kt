@@ -59,7 +59,6 @@ import com.metrolist.music.extensions.toMediaItem
 import com.metrolist.music.playback.ExoDownloadService
 import com.metrolist.music.playback.queues.ListQueue
 import com.metrolist.music.playback.queues.YouTubeQueue
-import com.metrolist.music.queue.newQueueGroupId
 import com.metrolist.music.ui.component.DefaultDialog
 import com.metrolist.music.ui.component.Material3MenuGroup
 import com.metrolist.music.ui.component.Material3MenuItemData
@@ -334,11 +333,10 @@ fun PlaylistMenu(
                                 onClick = {
                                     onDismiss()
                                     if (songs.isNotEmpty()) {
-                                        val groupId = newQueueGroupId()
                                         playerConnection.playQueue(
                                             ListQueue(
                                                 title = playlist.playlist.name,
-                                                items = songs.map { it.toMediaItem(groupId, playlist.playlist.name) },
+                                                items = songs.map(Song::toMediaItem),
                                             ),
                                         )
                                     }
@@ -357,11 +355,10 @@ fun PlaylistMenu(
                                 onClick = {
                                     onDismiss()
                                     if (songs.isNotEmpty()) {
-                                        val groupId = newQueueGroupId()
                                         playerConnection.playQueue(
                                             ListQueue(
                                                 title = playlist.playlist.name,
-                                                items = songs.shuffled().map { it.toMediaItem(groupId, playlist.playlist.name) },
+                                                items = songs.shuffled().map(Song::toMediaItem),
                                             ),
                                         )
                                     }
@@ -445,8 +442,7 @@ fun PlaylistMenu(
                                     },
                                     onClick = {
                                         coroutineScope.launch {
-                                            val groupId = newQueueGroupId()
-                                            playerConnection.playNext(songs.map { it.toMediaItem(groupId, playlist.playlist.name) })
+                                            playerConnection.playNext(songs.map { it.toMediaItem() })
                                         }
                                         onDismiss()
                                     },
@@ -466,8 +462,7 @@ fun PlaylistMenu(
                                     },
                                     onClick = {
                                         onDismiss()
-                                        val groupId = newQueueGroupId()
-                                        playerConnection.addToQueue(songs.map { it.toMediaItem(groupId, playlist.playlist.name) })
+                                        playerConnection.addToQueue(songs.map { it.toMediaItem() })
                                     },
                                 ),
                             )

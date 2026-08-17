@@ -118,7 +118,7 @@ class MusicDatabase(
         SortedSongAlbumMap::class,
         PlaylistSongMapPreview::class,
     ],
-    version = 38,
+    version = 39,
     exportSchema = true,
     autoMigrations = [
         AutoMigration(from = 2, to = 3),
@@ -201,6 +201,7 @@ abstract class InternalDatabase : RoomDatabase() {
                     MIGRATION_21_24,
                     MIGRATION_22_24,
                     MIGRATION_24_25,
+                    MIGRATION_38_39,
                 ).fallbackToDestructiveMigration()
                 .setJournalMode(RoomDatabase.JournalMode.WRITE_AHEAD_LOGGING)
                 .setTransactionExecutor(
@@ -840,6 +841,33 @@ val MIGRATION_24_25 =
             if (!columnExists) {
                 // Add the column allowing NULL values (since existing rows won't have this data)
                 db.execSQL("ALTER TABLE format ADD COLUMN perceptualLoudnessDb REAL DEFAULT NULL")
+            }
+        }
+    }
+
+val MIGRATION_38_39 =
+    object : Migration(38, 39) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            // Add playlistGroupId/playlistGroupTitle columns for persistent playlist grouping
+            // ("Add to Playlist as Group" - see PlaylistSongMap.playlistGroupId). Nullable,
+            // default NULL: existing rows are unaffected and read back as ungrouped.
+            var hasPlaylistGroupId = false
+            var hasPlaylistGroupTitle = false
+            db.query("PRAGMA table_info(playlist_song_map)").use { cursor ->
+                val nameIndex = cursor.getColumnIndex("name")
+                while (cursor.moveToNext()) {
+                    when (if (nameIndex >= 0) cursor.getString(nameIndex) else null) {
+                        "playlistGroupId" -> hasPlaylistGroupId = true
+                        "playlistGroupTitle" -> hasPlaylistGroupTitle = true
+                    }
+                }
+            }
+
+            if (!hasPlaylistGroupId) {
+                db.execSQL("ALTER TABLE playlist_song_map ADD COLUMN playlistGroupId TEXT DEFAULT NULL")
+            }
+            if (!hasPlaylistGroupTitle) {
+                db.execSQL("ALTER TABLE playlist_song_map ADD COLUMN playlistGroupTitle TEXT DEFAULT NULL")
             }
         }
     }

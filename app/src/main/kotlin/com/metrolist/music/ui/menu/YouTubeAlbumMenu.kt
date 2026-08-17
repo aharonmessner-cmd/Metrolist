@@ -71,7 +71,6 @@ import com.metrolist.music.db.entities.SpeedDialItem
 import com.metrolist.music.extensions.toMediaItem
 import com.metrolist.music.playback.ExoDownloadService
 import com.metrolist.music.playback.queues.YouTubeAlbumRadio
-import com.metrolist.music.queue.newQueueGroupId
 import com.metrolist.music.ui.component.ListDialog
 import com.metrolist.music.ui.component.Material3MenuGroup
 import com.metrolist.music.ui.component.Material3MenuItemData
@@ -367,10 +366,9 @@ fun YouTubeAlbumMenu(
                                     )
                                 },
                                 onClick = {
-                                    val groupId = newQueueGroupId()
                                     album
                                         ?.songs
-                                        ?.map { it.toMediaItem(groupId, albumItem.title) }
+                                        ?.map { it.toMediaItem() }
                                         ?.let(playerConnection::playNext)
                                     onDismiss()
                                 },
@@ -389,10 +387,9 @@ fun YouTubeAlbumMenu(
                                     )
                                 },
                                 onClick = {
-                                    val groupId = newQueueGroupId()
                                     album
                                         ?.songs
-                                        ?.map { it.toMediaItem(groupId, albumItem.title) }
+                                        ?.map { it.toMediaItem() }
                                         ?.let(playerConnection::addToQueue)
                                     onDismiss()
                                 },

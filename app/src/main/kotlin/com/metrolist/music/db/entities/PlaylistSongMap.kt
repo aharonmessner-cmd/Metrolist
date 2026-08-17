@@ -33,4 +33,13 @@ data class PlaylistSongMap(
     @ColumnInfo(index = true) val songId: String,
     val position: Int = 0,
     val setVideoId: String? = null,
+    // Persistent playlist grouping ("Add to Playlist as Group"): when non-null, this entry is
+    // part of a group of songs that were added to the playlist together (e.g. a whole album).
+    // Consecutive rows (by position) sharing the same playlistGroupId form one persisted group.
+    // This is intentionally a separate id space from MediaMetadata.queueGroupId - a *runtime*,
+    // per-queue-instance id minted fresh every time a stored group is loaded into the playback
+    // queue (see com.metrolist.music.queue.reifyPersistentPlaylistGroups). Null (the default)
+    // means an ordinary playlist entry, matching all pre-existing playlist rows.
+    val playlistGroupId: String? = null,
+    val playlistGroupTitle: String? = null,
 )
