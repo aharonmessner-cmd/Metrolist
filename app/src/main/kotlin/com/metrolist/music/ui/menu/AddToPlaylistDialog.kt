@@ -80,6 +80,11 @@ fun AddToPlaylistDialog(
     isVisible: Boolean,
     allowSyncing: Boolean = true,
     initialTextFieldValue: String? = null,
+    // Non-null makes this "Add to Playlist as Group": the batch being added is stored as one
+    // persistent playlist group (PlaylistSongMap.playlistGroupId/playlistGroupTitle) titled by
+    // this value, instead of as ordinary ungrouped entries. Null (the default) is the normal,
+    // unchanged flat "Add to Playlist" behavior every existing caller keeps using.
+    groupTitle: String? = null,
     onGetSong: suspend (Playlist) -> List<String>, // list of song ids. Songs should be inserted to database in this function.
     onGetSongIds: (suspend () -> List<String>)? = null,
     onDismiss: () -> Unit,
@@ -122,7 +127,11 @@ fun AddToPlaylistDialog(
     }
 
     suspend fun addSongsAndSync(targetPlaylist: Playlist, ids: List<String>) {
-        database.addSongsToPlaylist(targetPlaylist, ids.map { it to null }, prepend = true)
+        if (groupTitle != null) {
+            database.addSongsToPlaylistAsGroup(targetPlaylist, ids.map { it to null }, groupTitle, prepend = true)
+        } else {
+            database.addSongsToPlaylist(targetPlaylist, ids.map { it to null }, prepend = true)
+        }
         targetPlaylist.playlist.browseId?.let { plist ->
             ids.forEach { songId ->
                 syncUtils.addToPlaylist(plist, targetPlaylist.id, songId)

@@ -93,6 +93,31 @@ fun List<MediaItem>.asQueueGroup(groupTitle: String): List<MediaItem> {
     }
 }
 
+/**
+ * Stamps a precomputed, position-parallel list of (queueGroupId, queueGroupTitle) pairs onto
+ * this list of MediaItems - one pair per item, in order. Unlike [asQueueGroup] (which mints ONE
+ * fresh group id shared by every item), this is for the case where per-item group ids/titles were
+ * already computed elsewhere - e.g. com.metrolist.music.queue.reifyPersistentPlaylistGroups
+ * turning a playlist's persisted groups into fresh runtime queue groups (one id per persisted
+ * group, `null to null` for ungrouped songs), so a playlist with two separate persisted groups
+ * queues as two separate runtime groups instead of being flattened into one.
+ *
+ * [groupIdsAndTitles] must be the same size as this list.
+ */
+fun List<MediaItem>.withQueueGroups(groupIdsAndTitles: List<Pair<String?, String?>>): List<MediaItem> {
+    require(size == groupIdsAndTitles.size) {
+        "withQueueGroups requires one (queueGroupId, queueGroupTitle) pair per item: " +
+            "$size items but ${groupIdsAndTitles.size} pairs"
+    }
+    return mapIndexed { index, item ->
+        val (groupId, groupTitle) = groupIdsAndTitles[index]
+        val tag = item.metadata ?: return@mapIndexed item
+        item.buildUpon()
+            .setTag(tag.copy(queueGroupId = groupId, queueGroupTitle = groupTitle))
+            .build()
+    }
+}
+
 // Defaults preserve whatever this MediaMetadata already carries (e.g. a queue restored from
 // PersistQueue may already have queueGroupId/queueGroupTitle set) instead of stamping every
 // generic single-item call site (QueueMenu, queue restoration, etc.) back to ungrouped.

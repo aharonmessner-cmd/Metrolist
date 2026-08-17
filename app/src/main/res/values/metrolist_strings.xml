@@ -446,6 +446,8 @@
     <string name="add_to_library_desc">Save to your library</string>
     <string name="download_desc">Download for offline playback</string>
     <string name="add_to_playlist_desc">Add to a playlist</string>
+    <string name="add_to_playlist_as_group">Add to playlist as Group</string>
+    <string name="add_to_playlist_as_group_desc">Add to a playlist, remembered as one group</string>
     <string name="refetch_desc">Refresh metadata from YouTube Music</string>
     <string name="share_desc">Share a link to this item</string>
     <string name="delete_desc">Permanently remove this item</string>

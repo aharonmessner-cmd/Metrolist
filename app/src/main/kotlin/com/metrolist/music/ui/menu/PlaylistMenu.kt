@@ -55,10 +55,15 @@ import com.metrolist.music.db.entities.Playlist
 import com.metrolist.music.db.entities.PlaylistSong
 import com.metrolist.music.db.entities.Song
 import com.metrolist.music.db.entities.SpeedDialItem
+import com.metrolist.music.extensions.asQueueGroup
 import com.metrolist.music.extensions.toMediaItem
+import com.metrolist.music.extensions.withQueueGroups
 import com.metrolist.music.playback.ExoDownloadService
 import com.metrolist.music.playback.queues.ListQueue
 import com.metrolist.music.playback.queues.YouTubeQueue
+import com.metrolist.music.queue.flattenIndices
+import com.metrolist.music.queue.queueGroupEntries
+import com.metrolist.music.queue.reifyPersistentPlaylistGroups
 import com.metrolist.music.ui.component.DefaultDialog
 import com.metrolist.music.ui.component.Material3MenuGroup
 import com.metrolist.music.ui.component.Material3MenuItemData
@@ -95,10 +100,18 @@ fun PlaylistMenu(
     var songs by remember {
         mutableStateOf(emptyList<Song>())
     }
+    // The full PlaylistSong rows (song + PlaylistSongMap), kept alongside `songs` specifically to
+    // preserve each row's playlistGroupId/playlistGroupTitle - `songs` alone (List<Song>) has no
+    // way to carry that. Empty for autoPlaylists (Liked Songs, Downloaded, etc.), which have no
+    // persisted playlist grouping at all.
+    var fullPlaylistSongs by remember {
+        mutableStateOf(emptyList<PlaylistSong>())
+    }
 
     LaunchedEffect(Unit) {
         if (autoPlaylist == false) {
             database.playlistSongs(playlist.id).collect {
+                fullPlaylistSongs = it
                 songs = it.map(PlaylistSong::song)
             }
         } else {
@@ -107,6 +120,60 @@ fun PlaylistMenu(
             }
         }
     }
+
+    // True if this playlist has at least one persisted "Add to Playlist as Group" batch
+    // (PlaylistSongMap.playlistGroupId) among its current songs.
+    val hasPersistedGroups = remember(fullPlaylistSongs) {
+        fullPlaylistSongs.any { it.map.playlistGroupId != null }
+    }
+
+    /**
+     * Builds the MediaItems for "Play/Play Next/Add to Queue as Group", preserving the playlist's
+     * own persisted group boundaries when it has any: each persisted group (see
+     * PlaylistSongMap.playlistGroupId) is reified into its own fresh runtime queueGroupId via
+     * [reifyPersistentPlaylistGroups], so two separate persisted groups stay two separate runtime
+     * groups and ungrouped songs stay ungrouped - never flattened into one big group.
+     *
+     * If the playlist has no persisted groups at all, falls back to the original behavior: the
+     * whole playlist becomes one fresh group, exactly like "as Group" already works for albums.
+     */
+    fun buildGroupedPlaylistItems() =
+        if (hasPersistedGroups) {
+            val reified =
+                reifyPersistentPlaylistGroups(
+                    persistentGroupIds = fullPlaylistSongs.map { it.map.playlistGroupId },
+                    persistentGroupTitles = fullPlaylistSongs.map { it.map.playlistGroupTitle },
+                )
+            songs.map { it.toMediaItem() }.withQueueGroups(reified)
+        } else {
+            songs.map { it.toMediaItem() }.asQueueGroup(playlist.playlist.name)
+        }
+
+    /**
+     * Same as [buildGroupedPlaylistItems] but for "Shuffle as Group": shuffles at the same
+     * granularity a shuffled queue would - a whole persisted group moves as one contiguous block,
+     * never splitting it apart - by shuffling [queueGroupEntries] built from the playlist's
+     * persisted groups rather than shuffling the flat song list directly. With no persisted
+     * groups this is just a normal flat shuffle, same as before.
+     */
+    fun buildGroupedShuffledPlaylistItems() =
+        if (hasPersistedGroups) {
+            val entries =
+                queueGroupEntries(
+                    groupIds = fullPlaylistSongs.map { it.map.playlistGroupId },
+                    groupTitles = fullPlaylistSongs.map { it.map.playlistGroupTitle },
+                ).shuffled()
+            val newOrder = entries.flattenIndices()
+            val orderedPlaylistSongs = newOrder.map { fullPlaylistSongs[it] }
+            val reified =
+                reifyPersistentPlaylistGroups(
+                    persistentGroupIds = orderedPlaylistSongs.map { it.map.playlistGroupId },
+                    persistentGroupTitles = orderedPlaylistSongs.map { it.map.playlistGroupTitle },
+                )
+            orderedPlaylistSongs.map { it.song.toMediaItem() }.withQueueGroups(reified)
+        } else {
+            songs.shuffled().map { it.toMediaItem() }.asQueueGroup(playlist.playlist.name)
+        }
 
     var downloadState by remember {
         mutableIntStateOf(Download.STATE_STOPPED)
@@ -377,10 +444,11 @@ fun PlaylistMenu(
                                 onClick = {
                                     onDismiss()
                                     if (songs.isNotEmpty()) {
-                                        playerConnection.playQueueAsGroup(
-                                            title = playlist.playlist.name,
-                                            items = songs.map(Song::toMediaItem),
-                                            groupTitle = playlist.playlist.name,
+                                        playerConnection.playQueue(
+                                            ListQueue(
+                                                title = playlist.playlist.name,
+                                                items = buildGroupedPlaylistItems(),
+                                            ),
                                         )
                                     }
                                 },
@@ -398,10 +466,11 @@ fun PlaylistMenu(
                                 onClick = {
                                     onDismiss()
                                     if (songs.isNotEmpty()) {
-                                        playerConnection.playQueueAsGroup(
-                                            title = playlist.playlist.name,
-                                            items = songs.shuffled().map(Song::toMediaItem),
-                                            groupTitle = playlist.playlist.name,
+                                        playerConnection.playQueue(
+                                            ListQueue(
+                                                title = playlist.playlist.name,
+                                                items = buildGroupedShuffledPlaylistItems(),
+                                            ),
                                         )
                                     }
                                 },
@@ -504,7 +573,7 @@ fun PlaylistMenu(
                                     },
                                     onClick = {
                                         coroutineScope.launch {
-                                            playerConnection.playNextAsGroup(songs.map { it.toMediaItem() }, playlist.playlist.name)
+                                            playerConnection.playNext(buildGroupedPlaylistItems())
                                         }
                                         onDismiss()
                                     },
@@ -542,7 +611,7 @@ fun PlaylistMenu(
                                     },
                                     onClick = {
                                         onDismiss()
-                                        playerConnection.addToQueueAsGroup(songs.map { it.toMediaItem() }, playlist.playlist.name)
+                                        playerConnection.addToQueue(buildGroupedPlaylistItems())
                                     },
                                 ),
                             )

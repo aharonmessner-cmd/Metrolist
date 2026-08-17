@@ -124,6 +124,7 @@ import com.metrolist.music.ui.component.BottomSheetState
 import com.metrolist.music.ui.component.LocalBottomSheetPageState
 import com.metrolist.music.ui.component.LocalMenuState
 import com.metrolist.music.ui.component.MediaMetadataListItem
+import com.metrolist.music.ui.component.PlayingIndicatorBox
 import com.metrolist.music.ui.menu.PlayerMenu
 import com.metrolist.music.ui.menu.QueueMenu
 import com.metrolist.music.ui.menu.SelectionMediaMetadataMenu
@@ -180,7 +181,7 @@ private sealed class QueueListRow {
 private fun buildQueueListRows(
     windows: List<Timeline.Window>,
     entries: List<QueueEntry>,
-    collapsedGroupIds: Set<String>,
+    expandedGroupIds: Set<String>,
 ): List<QueueListRow> {
     val rows = mutableListOf<QueueListRow>()
     entries.forEachIndexed { entryIndex, entry ->
@@ -194,7 +195,7 @@ private fun buildQueueListRows(
                 )
             }
             is QueueEntry.Group -> {
-                val collapsed = entry.groupId in collapsedGroupIds
+                val collapsed = entry.groupId !in expandedGroupIds
                 rows += QueueListRow.GroupHeader(
                     entryIndex = entryIndex,
                     groupId = entry.groupId,
@@ -766,7 +767,12 @@ fun Queue(
         val lazyListState = rememberLazyListState()
         var pendingDrag by remember { mutableStateOf<PendingQueueDrag?>(null) }
 
-        var collapsedGroupIds by remember { mutableStateOf(setOf<String>()) }
+        // A group is collapsed unless its (stable, per-queue-instance) groupId is in this set -
+        // i.e. collapsed by default. A group's id is only ever added here by the user explicitly
+        // expanding it, so a group's expand/collapse state persists across recomposition, other
+        // groups being added, reordering, and playback advancing; it only resets if the group's
+        // own id disappears from the queue entirely (e.g. all its songs were removed).
+        var expandedGroupIds by remember { mutableStateOf(setOf<String>()) }
         val queueEntries by remember {
             derivedStateOf {
                 queueGroupEntries(
@@ -777,7 +783,7 @@ fun Queue(
         }
         val renderRows by remember {
             derivedStateOf {
-                buildQueueListRows(mutableQueueWindows, queueEntries, collapsedGroupIds)
+                buildQueueListRows(mutableQueueWindows, queueEntries, expandedGroupIds)
             }
         }
 
@@ -971,6 +977,10 @@ fun Queue(
                     ) {
                         when (row) {
                             is QueueListRow.GroupHeader -> {
+                                val isGroupActive =
+                                    row.flatIndices.any { idx ->
+                                        mutableQueueWindows.getOrNull(idx)?.uid == currentPlayingUid
+                                    }
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
                                     modifier =
@@ -980,11 +990,11 @@ fun Queue(
                                             .height(ListItemHeight)
                                             .animateItem()
                                             .clickable {
-                                                collapsedGroupIds =
-                                                    if (row.groupId in collapsedGroupIds) {
-                                                        collapsedGroupIds - row.groupId
+                                                expandedGroupIds =
+                                                    if (row.groupId in expandedGroupIds) {
+                                                        expandedGroupIds - row.groupId
                                                     } else {
-                                                        collapsedGroupIds + row.groupId
+                                                        expandedGroupIds + row.groupId
                                                     }
                                             }.padding(horizontal = 12.dp),
                                 ) {
@@ -993,6 +1003,15 @@ fun Queue(
                                         contentDescription = null,
                                     )
                                     Spacer(modifier = Modifier.width(12.dp))
+                                    if (isGroupActive) {
+                                        PlayingIndicatorBox(
+                                            isActive = true,
+                                            playWhenReady = isPlaying,
+                                            color = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(24.dp),
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                    }
                                     Column(modifier = Modifier.weight(1f)) {
                                         Text(
                                             text = row.groupTitle ?: stringResource(R.string.queue),

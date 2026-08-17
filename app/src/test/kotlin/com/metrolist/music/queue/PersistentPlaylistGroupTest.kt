@@ -8,6 +8,23 @@ import org.junit.Test
 
 class PersistentPlaylistGroupTest {
     @Test
+    fun `newPersistentPlaylistGroupId generates non-blank, unique ids`() {
+        assertTrue(newPersistentPlaylistGroupId().isNotBlank())
+        assertNotEquals(newPersistentPlaylistGroupId(), newPersistentPlaylistGroupId())
+    }
+
+    @Test
+    fun `newPersistentPlaylistGroupId and newQueueGroupId are independent generators`() {
+        // Mechanically both mint random UUIDs, but they must never be confused for one another -
+        // a persistent playlist group id is a durable database identity, never a runtime
+        // queueGroupId (see reifyPersistentPlaylistGroups, which is the only place one becomes
+        // the other, and always via a fresh newQueueGroupId() call).
+        val persistentId = newPersistentPlaylistGroupId()
+        val queueId = newQueueGroupId()
+        assertNotEquals(persistentId, queueId)
+    }
+
+    @Test
     fun `no persistent groups yields all null pairs`() {
         val result = reifyPersistentPlaylistGroups(listOf(null, null, null))
         assertEquals(listOf(null to null, null to null, null to null), result)

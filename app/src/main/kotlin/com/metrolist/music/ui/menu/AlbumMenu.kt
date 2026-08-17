@@ -160,6 +160,10 @@ fun AlbumMenu(
         mutableStateOf(false)
     }
 
+    var addToPlaylistGroupTitle by rememberSaveable {
+        mutableStateOf<String?>(null)
+    }
+
     var showSelectArtistDialog by rememberSaveable {
         mutableStateOf(false)
     }
@@ -174,6 +178,7 @@ fun AlbumMenu(
 
     AddToPlaylistDialog(
         isVisible = showChoosePlaylistDialog,
+        groupTitle = addToPlaylistGroupTitle,
         onGetSong = { playlist ->
             coroutineScope.launch(Dispatchers.IO) {
                 playlist.playlist.browseId?.let { playlistId ->
@@ -187,6 +192,7 @@ fun AlbumMenu(
         onGetSongIds = { songs.map { it.id } },
         onDismiss = {
             showChoosePlaylistDialog = false
+            addToPlaylistGroupTitle = null
         },
     )
 
@@ -520,6 +526,21 @@ fun AlbumMenu(
                                 )
                             },
                             onClick = {
+                                addToPlaylistGroupTitle = null
+                                showChoosePlaylistDialog = true
+                            },
+                        ),
+                        Material3MenuItemData(
+                            title = { Text(text = stringResource(R.string.add_to_playlist_as_group)) },
+                            description = { Text(text = stringResource(R.string.add_to_playlist_as_group_desc)) },
+                            icon = {
+                                Icon(
+                                    painter = painterResource(R.drawable.playlist_add),
+                                    contentDescription = null,
+                                )
+                            },
+                            onClick = {
+                                addToPlaylistGroupTitle = album.album.title
                                 showChoosePlaylistDialog = true
                             },
                         ),

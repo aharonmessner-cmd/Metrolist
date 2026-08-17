@@ -143,6 +143,10 @@ fun YouTubeAlbumMenu(
         mutableStateOf(false)
     }
 
+    var addToPlaylistGroupTitle by rememberSaveable {
+        mutableStateOf<String?>(null)
+    }
+
     var showErrorPlaylistAddDialog by rememberSaveable {
         mutableStateOf(false)
     }
@@ -153,6 +157,7 @@ fun YouTubeAlbumMenu(
 
     AddToPlaylistDialog(
         isVisible = showChoosePlaylistDialog,
+        groupTitle = addToPlaylistGroupTitle,
         onGetSong = { playlist ->
             coroutineScope.launch(Dispatchers.IO) {
                 playlist.playlist.browseId?.let { playlistId ->
@@ -164,7 +169,10 @@ fun YouTubeAlbumMenu(
             album?.songs?.map { it.id }.orEmpty()
         },
         onGetSongIds = { album?.songs?.map { it.id }.orEmpty() },
-        onDismiss = { showChoosePlaylistDialog = false }
+        onDismiss = {
+            showChoosePlaylistDialog = false
+            addToPlaylistGroupTitle = null
+        }
     )
 
     if (showErrorPlaylistAddDialog) {
@@ -447,6 +455,21 @@ fun YouTubeAlbumMenu(
                                 )
                             },
                             onClick = {
+                                addToPlaylistGroupTitle = null
+                                showChoosePlaylistDialog = true
+                            },
+                        ),
+                        Material3MenuItemData(
+                            title = { Text(text = stringResource(R.string.add_to_playlist_as_group)) },
+                            description = { Text(text = stringResource(R.string.add_to_playlist_as_group_desc)) },
+                            icon = {
+                                Icon(
+                                    painter = painterResource(R.drawable.playlist_add),
+                                    contentDescription = null,
+                                )
+                            },
+                            onClick = {
+                                addToPlaylistGroupTitle = albumItem.title
                                 showChoosePlaylistDialog = true
                             },
                         ),

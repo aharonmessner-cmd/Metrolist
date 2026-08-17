@@ -117,6 +117,7 @@ fun YouTubePlaylistMenu(
     val isPinned by database.speedDialDao.isPinned(playlist.id).collectAsStateWithLifecycle(initialValue = false)
 
     var showChoosePlaylistDialog by rememberSaveable { mutableStateOf(false) }
+    var addToPlaylistGroupTitle by rememberSaveable { mutableStateOf<String?>(null) }
     var showImportPlaylistDialog by rememberSaveable { mutableStateOf(false) }
     var showErrorPlaylistAddDialog by rememberSaveable { mutableStateOf(false) }
 
@@ -126,6 +127,7 @@ fun YouTubePlaylistMenu(
 
     AddToPlaylistDialog(
         isVisible = showChoosePlaylistDialog,
+        groupTitle = addToPlaylistGroupTitle,
         onGetSong = { targetPlaylist ->
             val allSongs =
                 songs
@@ -152,7 +154,10 @@ fun YouTubePlaylistMenu(
         onGetSongIds = {
             songs.map { it.id }
         },
-        onDismiss = { showChoosePlaylistDialog = false },
+        onDismiss = {
+            showChoosePlaylistDialog = false
+            addToPlaylistGroupTitle = null
+        },
     )
 
     YouTubeListItem(
@@ -632,6 +637,21 @@ fun YouTubePlaylistMenu(
                                 )
                             },
                             onClick = {
+                                addToPlaylistGroupTitle = null
+                                showChoosePlaylistDialog = true
+                            },
+                        ),
+                        Material3MenuItemData(
+                            title = { Text(text = stringResource(R.string.add_to_playlist_as_group)) },
+                            description = { Text(text = stringResource(R.string.add_to_playlist_as_group_desc)) },
+                            icon = {
+                                Icon(
+                                    painter = painterResource(R.drawable.playlist_add),
+                                    contentDescription = null,
+                                )
+                            },
+                            onClick = {
+                                addToPlaylistGroupTitle = playlist.title
                                 showChoosePlaylistDialog = true
                             },
                         ),

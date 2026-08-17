@@ -41,7 +41,7 @@ import com.metrolist.music.db.entities.Playlist
 import com.metrolist.music.db.entities.PlaylistEntity
 import com.metrolist.music.db.entities.PlaylistSong
 import com.metrolist.music.db.entities.PlaylistSongMap
-import com.metrolist.music.queue.newQueueGroupId
+import com.metrolist.music.queue.newPersistentPlaylistGroupId
 import com.metrolist.music.db.entities.PodcastEntity
 import com.metrolist.music.db.entities.RecognitionHistory
 import com.metrolist.music.db.entities.RelatedSongMap
@@ -1230,7 +1230,7 @@ interface DatabaseDao {
                 getSongByIdBlocking(id)?.let { id to setVideoId }
             }
         if (songsToInsert.isEmpty()) return
-        val groupId = newQueueGroupId()
+        val groupId = newPersistentPlaylistGroupId()
 
         if (prepend) {
             shiftPlaylistSongPositions(playlist.id, songsToInsert.size)
