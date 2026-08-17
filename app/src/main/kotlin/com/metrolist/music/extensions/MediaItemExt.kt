@@ -18,11 +18,18 @@ import com.metrolist.music.ui.utils.resize
 val MediaItem.metadata: MediaMetadata?
     get() = localConfiguration?.tag as? MediaMetadata
 
-fun Song.toMediaItem() = MediaItem.Builder()
+/**
+ * [queueGroupId]/[queueGroupTitle] stamp this item as part of a Queue Group (see
+ * com.metrolist.music.queue.QueueEntry): callers that queue a whole album/playlist as one
+ * batch pass the same freshly-generated id (see com.metrolist.music.queue.newQueueGroupId) and
+ * title for every item in that batch. Left null (the default) for an ordinary, ungrouped item -
+ * this is what every pre-existing single-song call site still gets unchanged.
+ */
+fun Song.toMediaItem(queueGroupId: String? = null, queueGroupTitle: String? = null) = MediaItem.Builder()
     .setMediaId(song.id)
     .setUri(song.id)
     .setCustomCacheKey(song.id)
-    .setTag(toMediaMetadata())
+    .setTag(toMediaMetadata().copy(queueGroupId = queueGroupId, queueGroupTitle = queueGroupTitle))
     .setMediaMetadata(
         androidx.media3.common.MediaMetadata.Builder()
             .setTitle(song.title)
@@ -42,11 +49,11 @@ fun Song.toMediaItem() = MediaItem.Builder()
     )
     .build()
 
-fun SongItem.toMediaItem() = MediaItem.Builder()
+fun SongItem.toMediaItem(queueGroupId: String? = null, queueGroupTitle: String? = null) = MediaItem.Builder()
     .setMediaId(id)
     .setUri(id)
     .setCustomCacheKey(id)
-    .setTag(toMediaMetadata())
+    .setTag(toMediaMetadata().copy(queueGroupId = queueGroupId, queueGroupTitle = queueGroupTitle))
     .setMediaMetadata(
         androidx.media3.common.MediaMetadata.Builder()
             .setTitle(title)
@@ -66,11 +73,17 @@ fun SongItem.toMediaItem() = MediaItem.Builder()
     )
     .build()
 
-fun MediaMetadata.toMediaItem() = MediaItem.Builder()
+// Defaults preserve whatever this MediaMetadata already carries (e.g. a queue restored from
+// PersistQueue may already have queueGroupId/queueGroupTitle set) instead of stamping every
+// generic single-item call site (QueueMenu, queue restoration, etc.) back to ungrouped.
+fun MediaMetadata.toMediaItem(
+    queueGroupId: String? = this.queueGroupId,
+    queueGroupTitle: String? = this.queueGroupTitle,
+) = MediaItem.Builder()
     .setMediaId(id)
     .setUri(id)
     .setCustomCacheKey(id)
-    .setTag(this)
+    .setTag(this.copy(queueGroupId = queueGroupId, queueGroupTitle = queueGroupTitle))
     .setMediaMetadata(
         androidx.media3.common.MediaMetadata.Builder()
             .setTitle(title)

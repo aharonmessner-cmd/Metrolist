@@ -80,6 +80,7 @@ import com.metrolist.music.db.entities.SpeedDialItem
 import com.metrolist.music.extensions.toMediaItem
 import com.metrolist.music.playback.ExoDownloadService
 import com.metrolist.music.playback.queues.ListQueue
+import com.metrolist.music.queue.newQueueGroupId
 import com.metrolist.music.ui.component.AlbumListItem
 import com.metrolist.music.ui.component.ListDialog
 import com.metrolist.music.ui.component.ListItem
@@ -323,10 +324,11 @@ fun AlbumMenu(
                                 onClick = {
                                     onDismiss()
                                     if (songs.isNotEmpty()) {
+                                        val groupId = newQueueGroupId()
                                         playerConnection.playQueue(
                                             ListQueue(
                                                 title = album.album.title,
-                                                items = songs.map(Song::toMediaItem),
+                                                items = songs.map { it.toMediaItem(groupId, album.album.title) },
                                             ),
                                         )
                                     }
@@ -349,10 +351,11 @@ fun AlbumMenu(
                                         album.album.playlistId?.let { playlistId ->
                                             playerConnection.service.getAutomix(playlistId)
                                         }
+                                        val groupId = newQueueGroupId()
                                         playerConnection.playQueue(
                                             ListQueue(
                                                 title = album.album.title,
-                                                items = songs.shuffled().map(Song::toMediaItem),
+                                                items = songs.shuffled().map { it.toMediaItem(groupId, album.album.title) },
                                             ),
                                         )
                                     }
@@ -403,7 +406,8 @@ fun AlbumMenu(
                                 },
                                 onClick = {
                                     onDismiss()
-                                    playerConnection.playNext(songs.map { it.toMediaItem() })
+                                    val groupId = newQueueGroupId()
+                                    playerConnection.playNext(songs.map { it.toMediaItem(groupId, album.album.title) })
                                 },
                             )
                         } else {
@@ -421,7 +425,8 @@ fun AlbumMenu(
                                 },
                                 onClick = {
                                     onDismiss()
-                                    playerConnection.addToQueue(songs.map { it.toMediaItem() })
+                                    val groupId = newQueueGroupId()
+                                    playerConnection.addToQueue(songs.map { it.toMediaItem(groupId, album.album.title) })
                                 },
                             )
                         } else {

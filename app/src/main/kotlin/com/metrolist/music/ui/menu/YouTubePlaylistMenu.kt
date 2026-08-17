@@ -76,6 +76,7 @@ import com.metrolist.music.models.MediaMetadata
 import com.metrolist.music.models.toMediaMetadata
 import com.metrolist.music.playback.ExoDownloadService
 import com.metrolist.music.playback.queues.YouTubeQueue
+import com.metrolist.music.queue.newQueueGroupId
 import com.metrolist.music.ui.component.DefaultDialog
 import com.metrolist.music.ui.component.ListDialog
 import com.metrolist.music.ui.component.Material3MenuGroup
@@ -490,6 +491,7 @@ fun YouTubePlaylistMenu(
                                 },
                                 onClick = {
                                     coroutineScope.launch {
+                                        val groupId = newQueueGroupId()
                                         songs
                                             .ifEmpty {
                                                 withContext(Dispatchers.IO) {
@@ -505,7 +507,7 @@ fun YouTubePlaylistMenu(
                                                     songs.map {
                                                         it
                                                             .copy(thumbnail = it.thumbnail.resize(544, 544))
-                                                            .toMediaItem()
+                                                            .toMediaItem(groupId, playlist.title)
                                                     },
                                                 )
                                             }
@@ -528,6 +530,7 @@ fun YouTubePlaylistMenu(
                                 },
                                 onClick = {
                                     coroutineScope.launch {
+                                        val groupId = newQueueGroupId()
                                         songs
                                             .ifEmpty {
                                                 withContext(Dispatchers.IO) {
@@ -539,7 +542,7 @@ fun YouTubePlaylistMenu(
                                                         .orEmpty()
                                                 }
                                             }.let { songs ->
-                                                playerConnection.addToQueue(songs.map { it.toMediaItem() })
+                                                playerConnection.addToQueue(songs.map { it.toMediaItem(groupId, playlist.title) })
                                             }
                                     }
                                     onDismiss()
