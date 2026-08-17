@@ -12,6 +12,9 @@ on:
       - "app/src/main/res/values-*/strings.xml"
       - "app/src/main/res/values-*/metrolist_strings.xml"
       - "fastlane/**"
+  # Lets this exact workflow be run manually against any branch (no PR
+  # required), e.g. to verify a change before opening a PR.
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.number }}
@@ -42,12 +45,25 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
+      # No secrets here - just tool/runtime versions, to make a failure further down
+      # diagnosable from the log alone without re-running anything.
+      - name: Print build environment info
+        run: |
+          echo "== java -version =="
+          java -version
+          echo "== ./gradlew --version =="
+          ./gradlew --version
+          echo "== uname -a =="
+          uname -a
+          echo "== Project Kotlin/AGP versions (gradle/libs.versions.toml) =="
+          grep -E '^(kotlin|agp)\s*=' gradle/libs.versions.toml || true
+
       - name: Restore PR debug keystore
         id: pr_keystore
         uses: actions/cache/restore@v5
         with:
           path: app/pr-debug.keystore
-          key: pr-debug-keystore-${{ github.event.number }}
+          key: pr-debug-keystore-${{ github.event.number || 'manual' }}
 
       - name: Generate PR debug keystore if not cached
         if: steps.pr_keystore.outputs.cache-hit != 'true'
@@ -60,7 +76,7 @@ jobs:
             -keyalg RSA \
             -keysize 2048 \
             -validity 10000 \
-            -dname "CN=Metrolist PR ${{ github.event.number }},O=Metrolist,C=US"
+            -dname "CN=Metrolist PR ${{ github.event.number || 'manual' }},O=Metrolist,C=US"
 
       - name: Save PR debug keystore
         if: steps.pr_keystore.outputs.cache-hit != 'true'
@@ -69,12 +85,33 @@ jobs:
           path: app/pr-debug.keystore
           key: ${{ steps.pr_keystore.outputs.cache-primary-key }}
 
+      # Only the 3 modules that actually have a src/test source set. Targeting them
+      # explicitly (rather than the broader `test` lifecycle task) skips building
+      # unit-test variants for modules that have none, and skips the foss/izzy
+      # variants of :app since these tests don't vary by flavor.
+      - name: Run Unit Tests
+        run: >-
+          ./gradlew --console=plain --warning-mode summary
+          testGmsDebugUnitTest
+          :innertube:testDebugUnitTest
+          :betterlyrics:testDebugUnitTest
+
+      - name: Upload Test Reports
+        if: failure()
+        uses: actions/upload-artifact@v6
+        with:
+          name: unit-test-reports-pr-${{ github.event.number || 'manual' }}
+          path: |
+            **/build/reports/tests/**
+            **/build/test-results/**/*.xml
+          retention-days: 7
+
       - name: Build GMS Debug APK
         run: ./gradlew --console=plain assembleGmsDebug --warning-mode summary
         env:
           GITHUB_EVENT_NAME: ${{ github.event_name }}
-          METROLIST_APPLICATION_ID: com.metrolist.music.pr.p${{ github.event.number }}
-          METROLIST_APP_NAME: Metrolist PR ${{ github.event.number }}
+          METROLIST_APPLICATION_ID: com.metrolist.music.pr.p${{ github.event.number || 'manual' }}
+          METROLIST_APP_NAME: Metrolist PR ${{ github.event.number || 'manual' }}
           METROLIST_DEBUG_KEYSTORE_PATH: pr-debug.keystore
           PULL_REQUEST: "true"
           LASTFM_API_KEY: ${{ secrets.LASTFM_API_KEY }}
@@ -83,5 +120,5 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v6
         with:
-          name: app-universal-debug-pr-${{ github.event.number }}
+          name: app-universal-debug-pr-${{ github.event.number || 'manual' }}
           path: app/build/outputs/apk/gms/debug/*.apk
