@@ -518,6 +518,45 @@ fun YouTubePlaylistMenu(
                         },
                         if (!isGuest) {
                             Material3MenuItemData(
+                                title = { Text(text = stringResource(R.string.play_next_as_group)) },
+                                description = { Text(text = stringResource(R.string.play_next_as_group_desc)) },
+                                icon = {
+                                    Icon(
+                                        painter = painterResource(R.drawable.playlist_play),
+                                        contentDescription = null,
+                                    )
+                                },
+                                onClick = {
+                                    coroutineScope.launch {
+                                        songs
+                                            .ifEmpty {
+                                                withContext(Dispatchers.IO) {
+                                                    YouTube
+                                                        .playlist(playlist.id)
+                                                        .completed()
+                                                        .getOrNull()
+                                                        ?.songs
+                                                        .orEmpty()
+                                                }
+                                            }.let { songs ->
+                                                playerConnection.playNextAsGroup(
+                                                    songs.map {
+                                                        it
+                                                            .copy(thumbnail = it.thumbnail.resize(544, 544))
+                                                            .toMediaItem()
+                                                    },
+                                                    playlist.title,
+                                                )
+                                            }
+                                    }
+                                    onDismiss()
+                                },
+                            )
+                        } else {
+                            null
+                        },
+                        if (!isGuest) {
+                            Material3MenuItemData(
                                 title = { Text(text = stringResource(R.string.add_to_queue)) },
                                 description = { Text(text = stringResource(R.string.add_to_queue_desc)) },
                                 icon = {
@@ -540,6 +579,41 @@ fun YouTubePlaylistMenu(
                                                 }
                                             }.let { songs ->
                                                 playerConnection.addToQueue(songs.map { it.toMediaItem() })
+                                            }
+                                    }
+                                    onDismiss()
+                                },
+                            )
+                        } else {
+                            null
+                        },
+                        if (!isGuest) {
+                            Material3MenuItemData(
+                                title = { Text(text = stringResource(R.string.add_to_queue_as_group)) },
+                                description = { Text(text = stringResource(R.string.add_to_queue_as_group_desc)) },
+                                icon = {
+                                    Icon(
+                                        painter = painterResource(R.drawable.queue_music),
+                                        contentDescription = null,
+                                    )
+                                },
+                                onClick = {
+                                    coroutineScope.launch {
+                                        songs
+                                            .ifEmpty {
+                                                withContext(Dispatchers.IO) {
+                                                    YouTube
+                                                        .playlist(playlist.id)
+                                                        .completed()
+                                                        .getOrNull()
+                                                        ?.songs
+                                                        .orEmpty()
+                                                }
+                                            }.let { songs ->
+                                                playerConnection.addToQueueAsGroup(
+                                                    songs.map { it.toMediaItem() },
+                                                    playlist.title,
+                                                )
                                             }
                                     }
                                     onDismiss()

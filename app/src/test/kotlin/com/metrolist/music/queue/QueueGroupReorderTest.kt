@@ -101,4 +101,35 @@ class QueueGroupReorderTest {
 
         assertEquals(2, clampReorderTargetWithinGroup(entries, draggedFlatIndex = 0, targetFlatIndex = 2))
     }
+
+    @Test
+    fun `dragging an ungrouped song toward a foreign group's interior redirects to its near boundary`() {
+        // null(0) A(1) A(2) A(3) null(4) - group A occupies flat positions 1..3.
+        val groupIds = listOf(null, "A", "A", "A", null)
+        val entries = queueGroupEntries(groupIds)
+
+        // Dragging song 0 downward into the middle of the group redirects to the group's start.
+        assertEquals(1, redirectReorderTargetAroundForeignGroup(entries, draggedFlatIndex = 0, targetFlatIndex = 2))
+        // Dragging song 4 upward into the middle of the group redirects to the group's end.
+        assertEquals(3, redirectReorderTargetAroundForeignGroup(entries, draggedFlatIndex = 4, targetFlatIndex = 2))
+    }
+
+    @Test
+    fun `redirect is a no-op when the target is not inside any group`() {
+        val groupIds = listOf(null, "A", "A", "A", null)
+        val entries = queueGroupEntries(groupIds)
+
+        assertEquals(0, redirectReorderTargetAroundForeignGroup(entries, draggedFlatIndex = 4, targetFlatIndex = 0))
+        assertEquals(4, redirectReorderTargetAroundForeignGroup(entries, draggedFlatIndex = 0, targetFlatIndex = 4))
+    }
+
+    @Test
+    fun `redirect is a no-op when the dragged song already belongs to a group`() {
+        // Dragging a member of group A itself must not be redirected by this function - that
+        // case is clampReorderTargetWithinGroup's responsibility instead.
+        val groupIds = listOf(null, "A", "A", "A", null)
+        val entries = queueGroupEntries(groupIds)
+
+        assertEquals(2, redirectReorderTargetAroundForeignGroup(entries, draggedFlatIndex = 1, targetFlatIndex = 2))
+    }
 }

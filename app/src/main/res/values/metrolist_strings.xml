@@ -437,6 +437,12 @@
     <string name="start_radio_desc">Start a radio based on this item</string>
     <string name="play_next_desc">Play next in the queue</string>
     <string name="add_to_queue_desc">Add to the end of the queue</string>
+    <string name="play_as_group">Play as Group</string>
+    <string name="shuffle_as_group">Shuffle as Group</string>
+    <string name="play_next_as_group">Play next as Group</string>
+    <string name="play_next_as_group_desc">Play next in the queue as one group</string>
+    <string name="add_to_queue_as_group">Add to queue as Group</string>
+    <string name="add_to_queue_as_group_desc">Add to the end of the queue as one group</string>
     <string name="add_to_library_desc">Save to your library</string>
     <string name="download_desc">Download for offline playback</string>
     <string name="add_to_playlist_desc">Add to a playlist</string>

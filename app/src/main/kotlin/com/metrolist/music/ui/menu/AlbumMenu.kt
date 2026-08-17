@@ -358,6 +358,53 @@ fun AlbumMenu(
                                     }
                                 },
                             )
+
+                            NewAction(
+                                icon = {
+                                    Icon(
+                                        painter = painterResource(R.drawable.play),
+                                        contentDescription = null,
+                                        modifier = Modifier.size(28.dp),
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                },
+                                text = stringResource(R.string.play_as_group),
+                                onClick = {
+                                    onDismiss()
+                                    if (songs.isNotEmpty()) {
+                                        playerConnection.playQueueAsGroup(
+                                            title = album.album.title,
+                                            items = songs.map(Song::toMediaItem),
+                                            groupTitle = album.album.title,
+                                        )
+                                    }
+                                },
+                            )
+
+                            NewAction(
+                                icon = {
+                                    Icon(
+                                        painter = painterResource(R.drawable.shuffle),
+                                        contentDescription = null,
+                                        modifier = Modifier.size(28.dp),
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                },
+                                text = stringResource(R.string.shuffle_as_group),
+                                onClick = {
+                                    onDismiss()
+                                    if (songs.isNotEmpty()) {
+                                        album.album.playlistId?.let { playlistId ->
+                                            playerConnection.service.getAutomix(playlistId)
+                                        }
+                                        playerConnection.playQueueAsGroup(
+                                            title = album.album.title,
+                                            items = songs.shuffled().map(Song::toMediaItem),
+                                            groupTitle = album.album.title,
+                                        )
+                                    }
+                                },
+                            )
                         } else {
                             null
                         },
@@ -411,6 +458,24 @@ fun AlbumMenu(
                         },
                         if (!isGuest) {
                             Material3MenuItemData(
+                                title = { Text(text = stringResource(R.string.play_next_as_group)) },
+                                description = { Text(text = stringResource(R.string.play_next_as_group_desc)) },
+                                icon = {
+                                    Icon(
+                                        painter = painterResource(R.drawable.playlist_play),
+                                        contentDescription = null,
+                                    )
+                                },
+                                onClick = {
+                                    onDismiss()
+                                    playerConnection.playNextAsGroup(songs.map { it.toMediaItem() }, album.album.title)
+                                },
+                            )
+                        } else {
+                            null
+                        },
+                        if (!isGuest) {
+                            Material3MenuItemData(
                                 title = { Text(text = stringResource(R.string.add_to_queue)) },
                                 description = { Text(text = stringResource(R.string.add_to_queue_desc)) },
                                 icon = {
@@ -422,6 +487,24 @@ fun AlbumMenu(
                                 onClick = {
                                     onDismiss()
                                     playerConnection.addToQueue(songs.map { it.toMediaItem() })
+                                },
+                            )
+                        } else {
+                            null
+                        },
+                        if (!isGuest) {
+                            Material3MenuItemData(
+                                title = { Text(text = stringResource(R.string.add_to_queue_as_group)) },
+                                description = { Text(text = stringResource(R.string.add_to_queue_as_group_desc)) },
+                                icon = {
+                                    Icon(
+                                        painter = painterResource(R.drawable.queue_music),
+                                        contentDescription = null,
+                                    )
+                                },
+                                onClick = {
+                                    onDismiss()
+                                    playerConnection.addToQueueAsGroup(songs.map { it.toMediaItem() }, album.album.title)
                                 },
                             )
                         } else {

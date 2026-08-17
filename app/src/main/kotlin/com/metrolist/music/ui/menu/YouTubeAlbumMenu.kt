@@ -378,6 +378,26 @@ fun YouTubeAlbumMenu(
                         },
                         if (!isGuest) {
                             Material3MenuItemData(
+                                title = { Text(text = stringResource(R.string.play_next_as_group)) },
+                                description = { Text(text = stringResource(R.string.play_next_as_group_desc)) },
+                                icon = {
+                                    Icon(
+                                        painter = painterResource(R.drawable.playlist_play),
+                                        contentDescription = null,
+                                    )
+                                },
+                                onClick = {
+                                    album?.songs?.map { it.toMediaItem() }?.let {
+                                        playerConnection.playNextAsGroup(it, albumItem.title)
+                                    }
+                                    onDismiss()
+                                },
+                            )
+                        } else {
+                            null
+                        },
+                        if (!isGuest) {
+                            Material3MenuItemData(
                                 title = { Text(text = stringResource(R.string.add_to_queue)) },
                                 description = { Text(text = stringResource(R.string.add_to_queue_desc)) },
                                 icon = {
@@ -391,6 +411,26 @@ fun YouTubeAlbumMenu(
                                         ?.songs
                                         ?.map { it.toMediaItem() }
                                         ?.let(playerConnection::addToQueue)
+                                    onDismiss()
+                                },
+                            )
+                        } else {
+                            null
+                        },
+                        if (!isGuest) {
+                            Material3MenuItemData(
+                                title = { Text(text = stringResource(R.string.add_to_queue_as_group)) },
+                                description = { Text(text = stringResource(R.string.add_to_queue_as_group_desc)) },
+                                icon = {
+                                    Icon(
+                                        painter = painterResource(R.drawable.queue_music),
+                                        contentDescription = null,
+                                    )
+                                },
+                                onClick = {
+                                    album?.songs?.map { it.toMediaItem() }?.let {
+                                        playerConnection.addToQueueAsGroup(it, albumItem.title)
+                                    }
                                     onDismiss()
                                 },
                             )

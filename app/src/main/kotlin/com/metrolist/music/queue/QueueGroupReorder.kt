@@ -57,3 +57,30 @@ fun clampReorderTargetWithinGroup(
     val hi = entry.indices.last()
     return targetFlatIndex.coerceIn(lo, hi)
 }
+
+/**
+ * When dragging an UNGROUPED song (or any song not itself part of a group) toward
+ * [targetFlatIndex], and that target position would land inside a *different*, neighboring
+ * group's contiguous run, redirects the target to sit just outside that group - before its first
+ * member if the drag is coming from above the group, or after its last member if coming from
+ * below - so an outside song can never be inserted into a foreign group's interior and split it.
+ *
+ * If [draggedFlatIndex] itself belongs to a group, or [targetFlatIndex] does not fall inside a
+ * group, [targetFlatIndex] is returned unchanged; that case is handled by
+ * [clampReorderTargetWithinGroup] instead.
+ */
+fun redirectReorderTargetAroundForeignGroup(
+    entries: List<QueueEntry>,
+    draggedFlatIndex: Int,
+    targetFlatIndex: Int,
+): Int {
+    val draggedEntry = entries.entryContaining(draggedFlatIndex)
+    if (draggedEntry is QueueEntry.Group) return targetFlatIndex
+
+    val targetEntry = entries.entryContaining(targetFlatIndex) ?: return targetFlatIndex
+    if (targetEntry !is QueueEntry.Group) return targetFlatIndex
+
+    val lo = targetEntry.indices.first()
+    val hi = targetEntry.indices.last()
+    return if (draggedFlatIndex < lo) lo else hi
+}
