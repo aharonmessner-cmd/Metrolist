@@ -23,10 +23,20 @@ fun String.resize(
         var h = height
         if (w != null && h == null) h = (w / W) * H
         if (w == null && h != null) w = (h / H) * W
-        return "${split("=w")[0]}=w$w-h$h-p-l90-rj"
+        return "${split("=w")[0]}=w$w-h$h-l90-rj"
     }
     if (this matches "https://yt3\\.ggpht\\.com/.*=s(\\d+)".toRegex()) {
-        return "$this-s${width ?: height}"
+        val w = width ?: height ?: return this
+        val h = height ?: width ?: return this
+        return "${split("=s")[0]}=w$w-h$h-p-l90-rj"
+    }
+    // i.ytimg.com thumbnails come as a fixed-name file (default/mqdefault/hqdefault/sddefault.jpg);
+    // the only way to request a larger image is to ask for the maxresdefault variant by name.
+    if (contains("i.ytimg.com")) {
+        val defaultJpg = Regex("[a-z]*default\\.jpg")
+        if (defaultJpg.containsMatchIn(this)) {
+            return replace(defaultJpg, "maxresdefault.jpg")
+        }
     }
     return this
 }

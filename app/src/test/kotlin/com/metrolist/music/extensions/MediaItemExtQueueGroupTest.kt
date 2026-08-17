@@ -10,6 +10,9 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 
 /**
  * Verifies Queue Groups metadata stamping is strictly opt-in (Part 3.5): normal
@@ -17,7 +20,14 @@ import org.junit.Test
  * ever applied afterward, explicitly, via List<MediaItem>.asQueueGroup() - the same MediaItems a
  * normal (non-grouped) action would build, with group metadata stamped on top. This is what lets
  * "Play"/"Play Next"/"Add to Queue" stay completely flat while "...as Group" opts in.
+ *
+ * Robolectric is required here (not a plain JUnit test) because toMediaItem() builds a real
+ * android.os.Bundle for MediaMetadata.Builder().setExtras() - unmocked on the plain unit-test
+ * classpath, matching the convention already used by DiscordPresenceTest/ComposeToImageTest/etc.
+ * for any test that touches real Android framework classes.
  */
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [33], application = android.app.Application::class)
 class MediaItemExtQueueGroupTest {
     private fun song(id: String) = Song(song = SongEntity(id = id, title = "Song $id"), artists = emptyList())
 
